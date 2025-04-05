@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国森林覆盖率数据可视化平台</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background-color: #0079c1;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: auto;
+        }
+        
+        .map-container {
+            flex: 3;
+            position: relative;
+        }
+        
+        .sidebar {
+            flex: 1;
+            background-color: #f5f5f5;
+            padding: 15px;
+            overflow-y: auto;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        #viewDiv {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-container {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .esri-widget {
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        
+        h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        .esri-legend {
+            max-width: 200px; 
+            max-height: 150px; 
+            overflow-y: auto; 
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.32/"></script>
+    <script src="https://js.arcgis.com/calcite-components/3.0.0/calcite.esm.js" type="module"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>中国森林覆盖率数据可视化平台</h1>
+        <div class="header-controls">
+            <button id="themeToggle">切换主题</button>
+            <button id="fullscreenBtn">全屏</button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="map-container">
+            <div id="viewDiv"></div>
+            
+            <div class="control-container">
+                <arcgis-scale-bar view="view"></arcgis-scale-bar>
+                <div id="searchWidget"></div>
+                <div id="layerList"></div>
+                <div id="legendWidget"></div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h2>底图库</h2>
+                <div id="basemapContainer"></div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h2>图层控制</h2>
+                <div id="layerToggle">
+                    <label>
+                        <input type="checkbox" id="forestLayerToggle" checked> 森林覆盖率数据
+                    </label>
+                    <label>
+                        <input type="checkbox" id="provinceLayerToggle" checked> 省级行政区划
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/widgets/BasemapGallery",
+            "esri/layers/FeatureLayer",
+            "esri/widgets/LayerList",
+            "esri/widgets/Legend",
+            "esri/widgets/Search",
+            "esri/widgets/ScaleBar",
+            "esri/Basemap",
+            "esri/config"
+        ], function(
+            Map, 
+            MapView, 
+            BasemapGallery,
+            FeatureLayer, 
+            LayerList, 
+            Legend, 
+            Search,
+            ScaleBar,
+            Basemap,
+            esriConfig
+        ) {
+            esriConfig.request.trustedServers.push("www.geosceneonline.cn");
+            
+            const forestLayer = new FeatureLayer({
+                url: "https://www.geosceneonline.cn/server/rest/services/Hosted/2021年森林覆盖率数据___╩í╟°_和_省_的交集/FeatureServer/0",
+                title: "中国森林覆盖率数据（2021）",
+                opacity: 0.8,
+                popupTemplate: {
+                    title: "森林覆盖信息",
+                    content: [{
+                        type: "fields",
+                        fieldInfos: [
+                            { fieldName: "省", label: "省份" },
+                            { fieldName: "sheet3_森", label: "覆盖率" }
+                        ]
+                    }]
+                },
+                renderer: {
+                    type: "simple",
+                    symbol: {
+                        type: "simple-fill",
+                        color: [34, 139, 34, 0.7],
+                        outline: {
+                            color: [0, 0, 0],
+                            width: 0.5
+                        }
+                    },
+                    visualVariables: [{
+                        type: "color",
+                        field: "sheet3_森",
+                        stops: [
+                            { value: 0, color: [255, 255, 204] },
+                            { value: 0.25, color: [161, 218, 180] },
+                            { value: 0.50, color: [65, 171, 93] },
+                            { value: 0.75, color: [0, 109, 44] }
+                        ],
+                        legendOptions: {
+                            title: "覆盖率"
+                        }
+                    }]
+                }
+            });
+            
+            const provinceLayer = new FeatureLayer({
+                url: "https://www.geosceneonline.cn/server/rest/services/Hosted/01中国省级行政区划/FeatureServer/0",
+                title: "省级行政区划",
+                opacity: 0.5,
+                renderer: {
+                    type: "simple",
+                    symbol: {
+                        type: "simple-line",
+                        color: [50, 50, 50],
+                        width: 1
+                    }
+                }
+            });
+
+            const map = new Map({ 
+                basemap: "topo",
+                layers: [forestLayer, provinceLayer]
+            });
+            
+            const view = new MapView({
+                container: "viewDiv",
+                map: map,
+                center: [116.404, 39.915],
+                zoom: 5
+            });
+
+            view.when(() => {
+                forestLayer.when(() => {
+                    view.goTo(forestLayer.fullExtent).catch(() => {
+                        console.log("自动缩放失败，保持当前视图");
+                    });
+                });
+
+                const basemapGallery = new BasemapGallery({
+                    view: view,
+                    container: document.getElementById("basemapContainer")
+                });
+                
+                const search = new Search({
+                    view: view,
+                    includeDefaultSources: true,
+                    popupEnabled: false
+                });
+                view.ui.add(search, "top-right");
+
+                const layerList = new LayerList({
+                    view: view,
+                    listItemCreatedFunction: function(event) {
+                        const item = event.item;
+                        if (item.layer.type !== "group") {
+                            item.panel = {
+                                content: "legend",
+                                open: true
+                            };
+                        }
+                    }
+                });
+                
+                const layerListContainer = document.getElementById("layerList");
+                if(layerListContainer && layerList.domNode) {
+                    layerListContainer.appendChild(layerList.domNode);
+                }
+
+                const legend = new Legend({
+                    view: view,
+                    layerInfos: [{
+                        layer: forestLayer,
+                        title: "中国2021年森林覆盖率"
+                    }]
+                });
+                view.ui.add(legend, {
+                    position: "bottom-right"
+                });
+                
+                const scaleBar = new ScaleBar({
+                    view: view,
+                    unit: "metric"
+                });
+                view.ui.add(scaleBar, {
+                    position: "bottom-left"
+                });
+                
+                document.getElementById("forestLayerToggle").addEventListener("change", function(e) {
+                    forestLayer.visible = e.target.checked;
+                });
+                
+                document.getElementById("provinceLayerToggle").addEventListener("change", function(e) {
+                    provinceLayer.visible = e.target.checked;
+                });
+                
+                document.getElementById("themeToggle").addEventListener("click", function() {
+                    const currentTheme = document.querySelector("link[href*='esri/themes/']").href;
+                    const newTheme = currentTheme.includes("light") ? 
+                        "https://js.arcgis.com/4.32/esri/themes/dark/main.css" :
+                        "https://js.arcgis.com/4.32/esri/themes/light/main.css";
+                    document.querySelector("link[href*='esri/themes/']").href = newTheme;
+                });
+                
+                document.getElementById("fullscreenBtn").addEventListener("click", function() {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    } else {
+                        document.documentElement.requestFullscreen();
+                    }
+                });
+                
+            }).catch(error => {
+                console.error("视图加载失败:", error);
+            });
+        });
+    </script>
+</body>
+</html>
